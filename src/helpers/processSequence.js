@@ -1,3 +1,8 @@
+import * as R from "ramda";
+import Api from "../tools/api";
+
+const api = new Api();
+
 /**
  * @file Домашка по FP ч. 2
  *
@@ -14,38 +19,70 @@
  * Иногда промисы от API будут приходить в состояние rejected, (прямо как и API в реальной жизни)
  * Ответ будет приходить в поле {result}
  */
- import Api from '../tools/api';
 
- const api = new Api();
+// математика
 
- /**
-  * Я – пример, удали меня
-  */
- const wait = time => new Promise(resolve => {
-     setTimeout(resolve, time);
- })
+const charsLessThen10 = R.lt(R.__, 10);
+const charsGrThen2 = R.gt(R.__, 2);
+const square = (value) => value ** 2;
+const squareThen = R.andThen(square);
 
- const processSequence = ({value, writeLog, handleSuccess, handleError}) => {
-     /**
-      * Я – пример, удали меня
-      */
-     writeLog(value);
+// валидация и условия
 
-     api.get('https://api.tech/numbers/base', {from: 2, to: 10, number: '01011010101'}).then(({result}) => {
-         writeLog(result);
-     });
+const lenGrThen2 = R.compose(charsGrThen2, R.length);
+const lenLessThen10 = R.compose(charsLessThen10, R.length);
+const checkNumberRegEx = R.test(/^[0-9]+\.?[0-9]+$/);
+const round = R.compose(Math.round, Number);
+const mod = R.compose(String, R.mathMod(R.__, 3));
+const modThen = R.andThen(mod);
+const getLengthThen = R.andThen(R.length);
 
-     wait(2500).then(() => {
-         writeLog('SecondLog')
+const validation = R.allPass([lenGrThen2, lenLessThen10, checkNumberRegEx]);
 
-         return wait(1500);
-     }).then(() => {
-         writeLog('ThirdLog');
+// API
 
-         return wait(400);
-     }).then(() => {
-         handleSuccess('Done');
-     });
- }
+const NUMBERS = "https://api.tech/numbers/base";
+const ANIMALS = "https://animals.tech/";
+
+const fetchResult = R.compose(String, R.prop('result'));
+const toBinary = R.assoc("number", R.__, { from: 10, to: 2 });
+const getBinaryNum = R.compose(api.get(NUMBERS), toBinary);
+const fetchResultThen = R.andThen(fetchResult);
+const buildAnimalURL = R.andThen(R.concat(ANIMALS));
+const callWithEmptyParams = R.andThen(api.get(R.__, {}));
+
+// proccesSequence
+
+const processSequence = ({ value, writeLog, handleSuccess, handleError }) => {
+  const handleSuccessThen = R.andThen(handleSuccess);
+  const handleErrorThen = R.otherwise(handleError);
+  const handleValidationError = R.partial(handleError, ["ValidationError"]);
+
+  const tapWriteLog = R.tap(writeLog);
+  const tapLogThen = R.andThen(tapWriteLog);
+
+  const processSequencePipiline = R.compose(
+    handleErrorThen,
+    handleSuccessThen,
+    fetchResultThen,
+    callWithEmptyParams,
+    buildAnimalURL,
+    tapLogThen,
+    modThen,
+    tapLogThen,
+    squareThen,
+    tapLogThen,
+    getLengthThen,
+    tapLogThen,
+    fetchResultThen,
+    getBinaryNum,
+    tapWriteLog,
+    round
+  );
+
+  const run = R.ifElse(validation, processSequencePipiline, handleValidationError);
+  const logRun = R.compose(run, tapWriteLog);
+  logRun(value);
+};
 
 export default processSequence;
